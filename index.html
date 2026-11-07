@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>INPACT — Code your way</title>
+<meta name="description" content="INPACT is moving to a new home. Back soon.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#0369a1; --accent:#0891b2; --text:#334155; }
+  * { box-sizing:border-box; }
+  html,body { height:100%; margin:0; }
+  body {
+    background:#fff; color:var(--text); font-family:"Comfortaa",system-ui,sans-serif; overflow-x:hidden;
+    background-image:linear-gradient(rgba(8,145,178,.05) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(8,145,178,.05) 1px,transparent 1px);
+    background-size:52px 52px;
+  }
+  canvas { position:fixed; inset:0; width:100%; height:100%; pointer-events:none; }
+  header { position:relative; padding:28px 16px 0 clamp(16px,4vw,60px); }
+  header img { height:clamp(72px,12vw,120px); width:auto; display:block; }
+  main { position:relative; min-height:calc(100% - 160px); display:flex; flex-direction:column;
+         justify-content:center; padding:24px 16px 64px clamp(16px,22vw,450px); }
+  h1 { font-weight:400; color:var(--ink); font-size:clamp(38px,7vw,72px); line-height:1.1; margin:0 0 20px; }
+  .tag { font-family:"DM Mono",monospace; color:var(--accent); font-size:14px; letter-spacing:.06em; margin:0 0 14px; }
+  p { max-width:520px; line-height:1.7; margin:0 0 12px; }
+  a { color:var(--accent); }
+  .run { margin:22px 0 0; max-width:560px; }
+  .run canvas { position:static; display:block; width:100%; height:150px; pointer-events:auto; touch-action:none; cursor:pointer; outline:none; }
+  .run small { display:block; font-family:"DM Mono",monospace; font-size:11px; color:rgba(8,145,178,.6); margin-top:6px; }
+  @media (max-width:700px){ main { padding-left:16px; } }
+  footer { position:relative; text-align:center; font-family:"DM Mono",monospace; font-size:12px;
+           color:rgba(8,145,178,.5); padding:0 16px 24px; }
+</style>
+</head>
+<body>
+<canvas id="rain" aria-hidden="true"></canvas>
+<header><img src="logo.svg" alt="INPACT"></header>
+<main>
+  <h1>Code your way</h1>
+  <p class="tag">// moving to a new home — back soon</p>
+  <p>INPACT is being rebuilt so beginners can keep learning by building real products, with a guide that asks the right questions instead of handing over code.</p>
+  <p>All learner work has been safely backed up. Questions? <a href="mailto:phani@phanisetty.info">phani@phanisetty.info</a></p>
+  <div class="run">
+    <canvas id="pi" tabindex="0" aria-label="Mini game: a running pi symbol. Press up or space to jump, down to duck. It plays itself when idle."></canvas>
+    <small>↑ / space / tap = jump · ↓ / swipe down = duck · idle = autopilot</small>
+  </div>
+</main>
+<footer>© INPACT · power on your tech growth</footer>
+<script>
+(() => {
+  const c = document.getElementById('rain'), x = c.getContext('2d');
+  const glyphs = '{}()[]<>/=;:+*#.,~|0123456789abcdef'.split('');
+  let w, h, cols, drops, still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function size() {
+    const r = devicePixelRatio || 1; w = innerWidth; h = innerHeight;
+    c.width = w * r; c.height = h * r; x.setTransform(r, 0, 0, r, 0, 0);
+    cols = Math.ceil(w / 42); drops = Array.from({length: cols}, () => Math.random() * h);
+    paint();
+  }
+  function paint() {
+    x.clearRect(0, 0, w, h); x.font = '13px "DM Mono", monospace';
+    for (let i = 0; i < cols; i++) for (let y = (drops[i] % 42); y < h; y += 42) {
+      x.fillStyle = `rgba(8,145,178,${0.08 + 0.1 * Math.random()})`;
+      x.fillText(glyphs[(Math.random() * glyphs.length) | 0], i * 42 + 14, y);
+    }
+  }
+  addEventListener('resize', size); size();
+  if (!still) setInterval(() => { drops = drops.map(d => d + 6); paint(); }, 900);
+})();
+</script>
+<script>
+(() => {
+  const cv = document.getElementById('pi'), g = cv.getContext('2d');
+  const INK = '#0369a1', ACC = '#0891b2', ROCK = '#64748b';
+  const GROUND = 122, PX = 48, G = 0.0042, JV = -0.74;
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let W = 560, best = 0;
+  try { best = +localStorage.getItem('pi-best') || 0; } catch (e) {}
+  let pi, obs, speed, dist, score, nextGap, lastInput, hit, t0, started = !still;
+
+  function size() {
+    const r = devicePixelRatio || 1; W = cv.clientWidth || 560;
+    cv.width = W * r; cv.height = 150 * r; g.setTransform(r, 0, 0, r, 0, 0);
+  }
+  function reset() {
+    pi = { y: 0, vy: 0, duck: false, legs: 0 };
+    obs = []; speed = 0.26; dist = 0; score = 0; nextGap = 260; hit = 0;
+  }
+  const auto = () => performance.now() - lastInput > 4000;
+  function jump() { if (pi.y === 0 && !hit) { pi.vy = JV; pi.duck = false; } }
+  function input(kind, down) {
+    lastInput = performance.now(); started = true;
+    if (kind === 'jump' && down) jump();
+    if (kind === 'duck') pi.duck = down && pi.y === 0;
+  }
+  addEventListener('keydown', e => {
+    if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); input('jump', true); }
+    else if (e.code === 'ArrowDown') { e.preventDefault(); input('duck', true); }
+  });
+  addEventListener('keyup', e => { if (e.code === 'ArrowDown') input('duck', false); });
+  let ty = null;
+  cv.addEventListener('pointerdown', e => { ty = e.clientY; });
+  cv.addEventListener('pointerup', e => {
+    if (ty !== null && e.clientY - ty > 24) { input('duck', true); setTimeout(() => input('duck', false), 450); }
+    else input('jump', true);
+    ty = null;
+  });
+
+  function box() {
+    return pi.duck ? { x: PX - 2, y: GROUND - 18 + pi.y, w: 32, h: 18 }
+                   : { x: PX, y: GROUND - 34 + pi.y, w: 26, h: 34 };
+  }
+  function spawn() {
+    const fly = score > 60 && Math.random() < 0.35;
+    if (fly) obs.push({ x: W + 10, fly: true, w: 34, h: 14, y: GROUND - 38 });
+    else { const h = 12 + Math.random() * 14, w = 14 + Math.random() * 14; obs.push({ x: W + 10, fly: false, w, h, y: GROUND - h }); }
+    nextGap = 300 + Math.random() * 420 + speed * 200;
+  }
+  function overlap(a, b) {
+    const m = 3;
+    return a.x + m < b.x + b.w && a.x + a.w - m > b.x && a.y + m < b.y + b.h && a.y + a.h - m > b.y;
+  }
+  function pilot() {
+    const o = obs.find(o => o.x + o.w > PX);
+    if (!o) { pi.duck = false; return; }
+    const gap = o.x - (PX + 26);
+    if (o.fly) pi.duck = gap < 60 && pi.y === 0;
+    else { pi.duck = false; if (gap < speed * 70 + 6 && gap > -10) jump(); }
+  }
+
+  function step(dt) {
+    if (hit) { hit -= dt; if (hit <= 0) reset(); return; }
+    if (auto()) pilot();
+    speed = Math.min(0.6, speed + dt * 0.000004);
+    dist += speed * dt; score = Math.floor(dist / 12);
+    pi.vy += G * dt; pi.y = Math.min(0, pi.y + pi.vy * dt); if (pi.y === 0) pi.vy = 0;
+    pi.legs += dt * speed * 0.06;
+    nextGap -= speed * dt; if (nextGap <= 0) spawn();
+    obs.forEach(o => o.x -= speed * dt); obs = obs.filter(o => o.x + o.w > -10);
+    const b = box();
+    if (obs.some(o => overlap(b, o))) {
+      hit = 900;
+      if (score > best) { best = score; try { localStorage.setItem('pi-best', best); } catch (e) {} }
+    }
+  }
+
+  function drawPi() {
+    const b = box(), x = b.x, y = b.y;
+    g.fillStyle = hit ? '#e11d48' : INK; g.strokeStyle = g.fillStyle; g.lineCap = 'round';
+    const barH = pi.duck ? 6 : 7;
+    g.beginPath(); g.roundRect(x, y, b.w, barH, 3); g.fill();          // top bar of π
+    g.lineWidth = 5;
+    const legTop = y + barH - 1, legLen = b.h - barH;
+    const run = pi.y === 0 && !hit ? Math.sin(pi.legs) * 4 : 0;
+    // left leg (slight curve), right leg (hooked foot) — they swing opposite
+    g.beginPath(); g.moveTo(x + 7, legTop); g.quadraticCurveTo(x + 6 + run * .5, legTop + legLen * .6, x + 5 + run, legTop + legLen); g.stroke();
+    g.beginPath(); g.moveTo(x + b.w - 8, legTop); g.lineTo(x + b.w - 8 - run, legTop + legLen - 3);
+    g.quadraticCurveTo(x + b.w - 7 - run, legTop + legLen, x + b.w - 3 - run, legTop + legLen - 1); g.stroke();
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(x + b.w - 6, y + barH / 2, 1.6, 0, 7); g.fill();   // eye
+  }
+  function draw() {
+    g.clearRect(0, 0, W, 150);
+    g.strokeStyle = 'rgba(8,145,178,.35)'; g.lineWidth = 1; g.setLineDash([6, 6]); g.lineDashOffset = dist % 12;
+    g.beginPath(); g.moveTo(0, GROUND + .5); g.lineTo(W, GROUND + .5); g.stroke(); g.setLineDash([]);
+    obs.forEach(o => {
+      if (o.fly) { g.fillStyle = ACC; g.font = '600 15px "DM Mono",monospace'; g.textBaseline = 'top'; g.fillText('</>', o.x, o.y - 1); }
+      else { g.fillStyle = ROCK; g.beginPath(); g.ellipse(o.x + o.w / 2, o.y + o.h * .6, o.w / 2, o.h * .6, 0, Math.PI, 0); g.lineTo(o.x + o.w, o.y + o.h); g.lineTo(o.x, o.y + o.h); g.fill(); }
+    });
+    drawPi();
+    g.font = '12px "DM Mono",monospace'; g.textBaseline = 'top'; g.fillStyle = 'rgba(8,145,178,.8)';
+    const pad = n => String(n).padStart(5, '0');
+    const label = (best ? 'HI ' + pad(best) + '  ' : '') + pad(score);
+    g.fillText(label, W - g.measureText(label).width - 6, 6);
+    g.fillStyle = 'rgba(8,145,178,.5)';
+    g.fillText(!started ? 'press ↑ to run' : auto() ? 'autopilot' : 'you', 6, 6);
+  }
+
+  let prev = performance.now();
+  function frame(now) {
+    const dt = Math.min(40, now - prev); prev = now;
+    if (started) step(dt);
+    draw(); requestAnimationFrame(frame);
+  }
+  addEventListener('resize', size);
+  lastInput = -1e9; size(); reset(); requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
